@@ -1,0 +1,102 @@
+---
+title: "Correlacion Violencia | Antecedentes de violencia familiares"
+author: "Stephanie Saavedra"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+library(haven)
+library(dplyr)
+library(readxl)
+library(fastDummies)
+
+rm(list=ls())
+dir()
+setwd("/home/tefi/Documents/Universidad/Mineria_de_datos/Proyecto_Final/")
+
+EPCVCM_Casadas <- read_sav("bd38/EPCVCM_Casadas.sav")
+EPCVCM_Persona <- read_sav("bd38/EPCVCM_Persona.sav")
+
+EPCVCM_Casadas <- EPCVCM_Casadas %>% group_by(folio) %>% mutate(violencia_familiar = (S2_3 == 1 || S2_4 == 1 ||S2_5_1 == 1 || S2_5_2 == 1 || S2_5_3 == 1 || S2_5_4 == 1 || S2_5_5 == 1 || S2_5_6 == 1 || S2_5_7 == 1 ))
+
+EPCVCM_Casadas <- EPCVCM_Casadas %>% group_by(folio) %>% 
+  mutate(humillacion = ((S1_01_1 == 1 & S1_1B_1 == 1 ) || (S1_01_1 == 2 & S1_1B_1 == 2))) %>%
+  mutate(amenazas = ((S1_01_2 == 1 & S1_1B_2 == 1 ) || (S1_01_2 == 2 & S1_1B_2 == 2))) %>% 
+  mutate(agresion = ((S1_01_3 == 1 & S1_1B_3 == 1 ) || (S1_01_3 == 2 & S1_1B_3 == 2))) %>% 
+  mutate(piropos_sexuales = ((S1_01_4 == 1 & S1_1B_4 == 1 ) || (S1_01_4 == 2 & S1_1B_4 == 2))) %>% 
+  mutate(manoseos = ((S1_01_5 == 1 & S1_1B_5 == 1 ) || (S1_01_5 == 2 & S1_1B_5 == 2))) %>% 
+  mutate(obligada_relaciones_sexuales = ((S1_01_6 == 1 & S1_1B_6 == 1 ) || (S1_01_6 == 2 & S1_1B_6 == 2)))
+
+data <- EPCVCM_Casadas %>% select(folio, violencia_familiar, humillacion, amenazas, agresion, piropos_sexuales, manoseos, obligada_relaciones_sexuales)
+apply(data, 2, sum)
+data <- data[,-c(1)]
+
+variables <- attributes(data)$names
+
+matrix_N <- dummy_cols(data, variables)
+attributes(matrix_N)$names
+matrix_N <- matrix_N[,-c(1:7)] %>% na.omit(matrix_N)
+
+# Verificando que no existan columnas con 0 observaciones
+apply(matrix_N, 2, sum)
+attributes(matrix_N)$names
+
+table(data[, variables[1:7]])
+
+n <- sum(matrix_N)
+matrix_p <- matrix_N/n
+matrix_p <- as.matrix(matrix_p)
+
+r <- margin.table(matrix_p, 1)
+c <- margin.table(matrix_p, 2)
+
+# Paso 1: Calculo de la matriz de residuos estadarizados
+S <- diag(r^(-0.5)) %*% (matrix_p - r %*% t(c)) %*% diag(c^(-0.5))
+
+# Paso 2: Calculo de la Descomposición SVD
+u <- svd(S)$u
+v <- svd(S)$v
+Da <- diag(svd(S)$d)
+
+# Paso 3: Coordenadas principales de filas
+FF <- diag(r^(-0.5)) %*% u %*% Da
+
+# Paso 4: Coordenadas principales de columnas
+GG <- diag(c^(-0.5)) %*% v %*% Da
+
+# Paso 5: Coordenadas estándar de filas
+X <- diag(r^(-0.5)) %*% u
+
+# Paso 6: Coordenadas estándar de columnas
+Y <- diag(c^(-0.5)) %*% v
+
+# Paso 7: Calculo de la inercia
+sum(((matrix_p - r %*% t(c))**2) / (r %*% t(c)))
+
+# Paso 8: Grafica de las coordenadas de FF y GG según la la inercia contenida en la matriz
+labels <- c("Antecedentes de violencia Familiares = NO", 
+            "Antecedentes de violencia Familiares = SI", 
+            "Humillacion = NO", 
+            "Humillacion = SI", 
+            "Amenazas = NO", 
+            "Amenazas = SI", 
+            "Agresion = NO" , 
+            "Agresion = SI", 
+            "Piropos Sexuales = NO", 
+            "Piropos Sexuales = SI", 
+            "Manoseos = NO",
+            "Manoseos = SI", 
+            "Obligada Relaciones sexuales = NO",
+            "Obligada Relaciones sexuales = SI")
+
+
+plot(GG[, 1], GG[, 2], type = "n")
+text(GG[, 1], GG[, 2], labels = labels, cex = 0.3)
+points(FF[, 1], FF[, 2], col = "grey")
+
+
+
+```
